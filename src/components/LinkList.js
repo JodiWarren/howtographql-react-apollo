@@ -1,8 +1,8 @@
-import React, { Component } from 'react'
-import { graphql } from 'react-apollo'
-import gql from 'graphql-tag'
+import React, { Component } from 'react';
+import { graphql } from 'react-apollo';
+import gql from 'graphql-tag';
 
-import Link from './Link'
+import Link from './Link';
 
 class LinkList extends Component {
     render() {
@@ -17,11 +17,11 @@ class LinkList extends Component {
         }
 
         // 3
-        const linksToRender = this.props.feedQuery.feed.links
+        const linksToRender = this.props.feedQuery.feed.links;
 
         return (
             <div>{linksToRender.map(link => <Link key={link.id} link={link} />)}</div>
-        )
+        );
     }
 }
 
@@ -38,7 +38,7 @@ const FEED_QUERY = gql`
             }
         }
     }
-`
+`;
 
 // 3
-export default graphql(FEED_QUERY, { name: 'feedQuery' }) (LinkList)
+export default graphql(FEED_QUERY, { name: 'feedQuery' }) (LinkList);

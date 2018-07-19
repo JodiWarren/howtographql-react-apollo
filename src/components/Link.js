@@ -1,4 +1,4 @@
-import React, { Component } from 'react'
+import React, { Component } from 'react';
 
 class Link extends Component {
     render() {
@@ -8,7 +8,7 @@ class Link extends Component {
                     {this.props.link.description} ({this.props.link.url})
                 </div>
             </div>
-        )
+        );
     }
 
     _voteForLink = async () => {
@@ -16,4 +16,4 @@ class Link extends Component {
     }
 }
 
-export default Link
+export default Link;
