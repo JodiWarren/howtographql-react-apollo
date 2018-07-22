@@ -1,8 +1,8 @@
 # the name for the service (will be part of the service's HTTP endpoint)
-service: hackernews-graphql-js
+#service: hackernews-graphql-js
 
 # the cluster and stage the service is deployed to
-stage: dev
+#stage: dev
 
 # to disable authentication:
 # disableAuth: true
@@ -11,4 +11,6 @@ secret: mysecret123
 # the file path pointing to your data model
 datamodel: datamodel.graphql
 
-cluster: public-fossilowl-946/prisma-eu1
+#cluster: public-fossilowl-946/prisma-eu1
+
+endpoint: https://eu1.prisma.sh/jodi-warren-1a92e2/hacker-news/dev
