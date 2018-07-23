@@ -1,8 +1,9 @@
-import React, { Component } from "react";
-import { graphql } from "react-apollo";
+import React, { Component, Fragment } from "react";
+import { graphql, Query } from "react-apollo";
 import gql from "graphql-tag";
 
 import Link from "./Link";
+import { LINKS_PER_PAGE } from "../constants";
 
 class LinkList extends Component {
   componentDidMount() {
@@ -10,42 +11,82 @@ class LinkList extends Component {
     this._subscribeToNewVotes();
   }
 
-  _updateCacheAfterVote = (store, createVote, linkId) => {
-    // 1
-    const data = store.readQuery({ query: FEED_QUERY });
+  _getQueryVariables = () => {
+    const isNewPage = this.props.location.pathname.includes("new");
+    const page = parseInt(this.props.match.params.page, 10);
 
-    // 2
+    const skip = isNewPage ? (page - 1) * LINKS_PER_PAGE : 0;
+    const first = isNewPage ? LINKS_PER_PAGE : 100;
+    const orderBy = isNewPage ? "createdAt_DESC" : null;
+    return { first, skip, orderBy };
+  };
+
+  _updateCacheAfterVote = (store, createVote, linkId) => {
+    const isNewPage = this.props.location.pathname.includes("new");
+    const page = parseInt(this.props.match.params.page, 10);
+
+    const skip = isNewPage ? (page - 1) * LINKS_PER_PAGE : 0;
+    const first = isNewPage ? LINKS_PER_PAGE : 100;
+    const orderBy = isNewPage ? "createdAt_DESC" : null;
+    const data = store.readQuery({
+      query: FEED_QUERY,
+      variables: { first, skip, orderBy }
+    });
+
     const votedLink = data.feed.links.find(link => link.id === linkId);
     votedLink.votes = createVote.link.votes;
 
-    // 3
     store.writeQuery({ query: FEED_QUERY, data });
   };
 
-  _subscribeToNewVotes = () => {
-    this.props.feedQuery.subscribeToMore({
-      document: VOTE_SUBSCRIPTION
+  _subscribeToNewVotes = subscribeToMore => {
+    subscribeToMore({
+      document: NEW_VOTES_SUBSCRIPTION
     });
   };
 
-  _subscribeToNewLinks = () => {
-    this.props.feedQuery.subscribeToMore({
-      document: FEED_SUBSCRIPTION,
-      updateQuery: (previous, { subscriptionData }) => {
-        const newAllLinks = [
-          subscriptionData.data.newLink.node,
-          ...previous.feed.links
-        ];
-        return {
-          ...previous,
+  _subscribeToNewLinks = subscribeToMore => {
+    subscribeToMore({
+      document: NEW_LINKS_SUBSCRIPTION,
+      updateQuery: (prev, { subscriptionData }) => {
+        if (!subscriptionData.data) return prev;
+        const newLink = subscriptionData.data.newLink.node;
+
+        return Object.assign({}, prev, {
           feed: {
-            ...previous.feed,
-            count: previous.feed.count + 1,
-            links: newAllLinks
+            links: [newLink, ...prev.feed.links],
+            count: prev.feed.links.length + 1,
+            __typename: prev.feed.__typename
           }
-        };
+        });
       }
     });
+  };
+
+  _getLinksToRender = data => {
+    const isNewPage = this.props.location.pathname.includes("new");
+    if (isNewPage) {
+      return data.feed.links;
+    }
+    const rankedLinks = data.feed.links.slice();
+    rankedLinks.sort((l1, l2) => l2.votes.length - l1.votes.length);
+    return rankedLinks;
+  };
+
+  _nextPage = data => {
+    const page = parseInt(this.props.match.params.page, 10);
+    if (page <= data.feed.count / LINKS_PER_PAGE) {
+      const nextPage = page + 1;
+      this.props.history.push(`/new/${nextPage}`);
+    }
+  };
+
+  _previousPage = () => {
+    const page = parseInt(this.props.match.params.page, 10);
+    if (page > 1) {
+      const previousPage = page - 1;
+      this.props.history.push(`/new/${previousPage}`);
+    }
   };
 
   render() {
@@ -60,24 +101,55 @@ class LinkList extends Component {
     }
 
     // 3
-    const linksToRender = this.props.feedQuery.feed.links;
 
     return (
-      <div>
-        {linksToRender.map((link, index) => (
-          <Link
-            key={link.id}
-            updateStoreAfterVote={this._updateCacheAfterVote}
-            index={index}
-            link={link}
-          />
-        ))}
-      </div>
+      <Query query={FEED_QUERY} variables={this._getQueryVariables()}>
+        {({ loading, error, data, subscribeToMore }) => {
+          if (loading) {
+            return <div>Fetching</div>;
+          }
+          if (error) {
+            return <div>Error</div>;
+          }
+
+          this._subscribeToNewLinks(subscribeToMore);
+          this._subscribeToNewVotes(subscribeToMore);
+
+          const linksToRender = this._getLinksToRender(data);
+          const isNewPage = this.props.location.pathname.includes("new");
+          const pageIndex = this.props.match.params.page
+            ? (this.props.match.params.page - 1) * LINKS_PER_PAGE
+            : 0;
+
+          return (
+            <Fragment>
+              {linksToRender.map((link, index) => (
+                <Link
+                  key={link.id}
+                  link={link}
+                  index={index + pageIndex}
+                  updateStoreAfterVote={this._updateCacheAfterVote}
+                />
+              ))}
+              {isNewPage && (
+                <div className="flex ml4 mv3 gray">
+                  <div className="pointer mr2" onClick={this._previousPage}>
+                    Previous
+                  </div>
+                  <div className="pointer" onClick={() => this._nextPage(data)}>
+                    Next
+                  </div>
+                </div>
+              )}
+            </Fragment>
+          );
+        }}
+      </Query>
     );
   }
 }
 
-const FEED_SUBSCRIPTION = gql`
+const NEW_LINKS_SUBSCRIPTION = gql`
   subscription {
     newLink {
       node {
@@ -100,7 +172,7 @@ const FEED_SUBSCRIPTION = gql`
   }
 `;
 
-const VOTE_SUBSCRIPTION = gql`
+const NEW_VOTES_SUBSCRIPTION = gql`
   subscription {
     newVote {
       node {
@@ -131,9 +203,8 @@ const VOTE_SUBSCRIPTION = gql`
 
 // 1
 export const FEED_QUERY = gql`
-  # 2
-  query FeedQuery {
-    feed {
+  query FeedQuery($first: Int, $skip: Int, $orderBy: LinkOrderByInput) {
+    feed(first: $first, skip: $skip, orderBy: $orderBy) {
       links {
         id
         createdAt
@@ -150,9 +221,10 @@ export const FEED_QUERY = gql`
           }
         }
       }
+      count
     }
   }
 `;
 
 // 3
-export default graphql(FEED_QUERY, { name: "feedQuery" })(LinkList);
+export default LinkList;

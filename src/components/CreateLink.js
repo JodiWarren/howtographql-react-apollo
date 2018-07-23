@@ -1,5 +1,5 @@
 import React, { Component } from "react";
-import { graphql } from "react-apollo";
+import { graphql, Mutation } from "react-apollo";
 import gql from "graphql-tag";
 
 import { FEED_QUERY } from "./LinkList";
@@ -11,6 +11,7 @@ class CreateLink extends Component {
   };
 
   render() {
+    const { description, url } = this.state;
     return (
       <div>
         <div className="flex flex-column mt3">
@@ -29,7 +30,9 @@ class CreateLink extends Component {
             placeholder="The URL for the link"
           />
         </div>
-        <button onClick={() => this._createLink()}>Submit</button>
+        <Mutation mutation={POST_MUTATION} variables={{ description, url }}>
+          <button onClick={() => this._createLink()}>Submit</button>
+        </Mutation>
       </div>
     );
   }
@@ -68,4 +71,4 @@ const POST_MUTATION = gql`
 `;
 
 // 3
-export default graphql(POST_MUTATION, { name: "postMutation" })(CreateLink);
+export default CreateLink;
